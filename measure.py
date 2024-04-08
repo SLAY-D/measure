@@ -11,49 +11,48 @@ conn = psycopg2.connect(
 )
 cursor = conn.cursor()
 
-# Создаем таблицу, если она не существует
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS values (
-        id SERIAL PRIMARY KEY,
-        sensor VARCHAR(255),
-        measure VARCHAR(255),
-        type VARCHAR(10)
-    )
-""")
-
-# Получаем текущее максимальное значение id в таблице
-cursor.execute("SELECT COALESCE(MAX(id), 0) FROM values")
-max_id = cursor.fetchone()[0]
-
-# Определяем коэффициенты для каждого датчика и типа
-coefficients = {
-    'Thermokon': {'pm2.5': 1.5, 'pm10': 0.5},
-    'Pure Air': {'pm2.5': 2.0, 'pm10': 1.3},
-    'Атмосфера': {'pm2.5': 1.8, 'pm10': 1.7}
-}
+# # Создаем таблицу, если она не существует
+# cursor.execute("""
+#     CREATE TABLE IF NOT EXISTS values (
+#         id SERIAL PRIMARY KEY,
+#         sensor VARCHAR(255),
+#         pm2.5 VARCHAR(255),
+#         pm10 VARCHAR(255),
+#         temperature VARCHAR(255),
+#         pressure VARCHAR(255),
+#         CO2 VARCHAR(255)
+#     )
+# """)
 
 # Получаем уникальные названия датчиков
 cursor.execute("SELECT DISTINCT S.manufacturer FROM sensor_type AS S, measurement AS M WHERE S.ID=M.SENSOR_TYPE_ID")
 sensors = cursor.fetchall()
 
-# Проходимся по каждому датчику и типу и получаем значения measure
+# Определяем коэффициенты для каждого датчика
+coefficients = {
+    'Thermokon': {'pm25': 1.5, 'pm10': 0.5, 'temperature': 2.0, 'pressure': 1.0, 'co2': 1.2},
+    'Pure Air': {'pm25': 2.0, 'pm10': 1.3, 'temperature': 1.8, 'pressure': 1.5, 'co2': 1.6},
+    'Атмосфера': {'pm25': 1.8, 'pm10': 1.7, 'temperature': 1.6, 'pressure': 1.3, 'co2': 1.4}
+}
+
+# Проходимся по каждому датчику и получаем значения
 for sensor in sensors:
     sensor_name = sensor[0]
-    for measure_type in ['pm2.5', 'pm10']:
-        cursor.execute("""
-            SELECT M.measurement
-            FROM measurement AS M
-            JOIN sensor_type AS S ON M.sensor_type_id = S.id
-            WHERE S.manufacturer = %s AND S.type = %s
-        """, (sensor_name, measure_type))
-        measures = cursor.fetchall()
-        # Применяем коэффициент и округляем значения
-        coefficient = coefficients.get(sensor_name, {}).get(measure_type, 1.0)
-        final_measurements = [(sensor_name, str(round(float(measure[0]) * coefficient, 2))) for measure in measures]
+    cursor.execute("""
+        SELECT M.pm25, M.pm10, M.temperature, M.pressure, M.co2
+        FROM measurement AS M
+        JOIN sensor_type AS S ON M.sensor_type_id = S.id
+        WHERE S.manufacturer = %s
+    """, (sensor_name,))
+    measures = cursor.fetchall()
+    # Применяем коэффициенты и округляем значения
+    for measure_row in measures:
+        final_measurements = [round(float(measure) * coefficients[sensor_name][column], 2) if measure is not None else None for measure, column in zip(measure_row, ['pm25', 'pm10', 'temperature', 'pressure', 'co2'])]
         # Вставляем обновленные значения обратно в базу данных
-        for i, (sensor, measure) in enumerate(final_measurements):
-            cursor.execute("INSERT INTO values (sensor, measure, type) VALUES (%s, %s, %s)",
-                           (sensor, measure, measure_type))
+        cursor.execute("""
+            INSERT INTO values (id, sensor, pm25, pm10, temperature, pressure, co2)
+            VALUES (DEFAULT, %s, %s, %s, %s, %s, %s)
+        """, (sensor_name,) + tuple(final_measurements))
 
 conn.commit()
 conn.close()
