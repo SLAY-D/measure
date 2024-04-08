@@ -11,18 +11,21 @@ conn = psycopg2.connect(
 )
 cursor = conn.cursor()
 
-# # Создаем таблицу, если она не существует
-# cursor.execute("""
-#     CREATE TABLE IF NOT EXISTS values (
-#         id SERIAL PRIMARY KEY,
-#         sensor VARCHAR(255),
-#         pm2.5 VARCHAR(255),
-#         pm10 VARCHAR(255),
-#         temperature VARCHAR(255),
-#         pressure VARCHAR(255),
-#         CO2 VARCHAR(255)
-#     )
-# """)
+# Удаляем таблицу, если она существует
+cursor.execute("DROP TABLE IF EXISTS values CASCADE;")
+
+# Создаем таблицу, если она не существует
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS values (
+        id SERIAL PRIMARY KEY,
+        sensor VARCHAR(255),
+        pm25 VARCHAR(255),
+        pm10 VARCHAR(255),
+        temperature VARCHAR(255),
+        pressure VARCHAR(255),
+        CO2 VARCHAR(255)
+    )
+""")
 
 # Получаем уникальные названия датчиков
 cursor.execute("SELECT DISTINCT S.manufacturer FROM sensor_type AS S, measurement AS M WHERE S.ID=M.SENSOR_TYPE_ID")
