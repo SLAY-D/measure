@@ -50,11 +50,25 @@ for sensor in sensors:
     measures = cursor.fetchall()
     # Применяем коэффициенты и округляем значения
     for measure_row in measures:
-        final_measurements = [round(float(measure) * coefficients[sensor_name][column], 2) if measure is not None else None for measure, column in zip(measure_row, ['pm25', 'pm10', 'temperature', 'pressure', 'co2'])]
+        final_measurements = []
+        for measure, column in zip(measure_row, ['pm25', 'pm10', 'temperature', 'pressure', 'co2']):
+            coefficient = coefficients[sensor_name][column]
+            signed_measure = round(float(measure) * abs(coefficient), 2) if measure is not None else None
+            if column == 'temperature':
+                if signed_measure is None:
+                    signed_temperature = None
+                elif signed_measure == 0:
+                    signed_temperature = '0'
+                elif signed_measure > 0:
+                    signed_temperature = f"+{signed_measure}"
+                else:
+                    signed_temperature = f"-{abs(signed_measure)}"
+                signed_measure = signed_temperature
+            final_measurements.append(signed_measure)
         # Вставляем обновленные значения обратно в базу данных
         cursor.execute("""
-            INSERT INTO values (id, sensor, pm25, pm10, temperature, pressure, co2)
-            VALUES (DEFAULT, %s, %s, %s, %s, %s, %s)
+            INSERT INTO values (sensor, "pm25", "pm10", temperature, pressure, co2)
+            VALUES (%s, %s, %s, %s, %s, %s)
         """, (sensor_name,) + tuple(final_measurements))
 
 conn.commit()
