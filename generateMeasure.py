@@ -14,11 +14,13 @@ conn = psycopg2.connect(
 cursor = conn.cursor()
 
 # Генерация и вставка рандомных данных
-for _ in range(100):  # Произвольное количество строк, которые вы хотите добавить
+for _ in range(50):  # Произвольное количество строк, которые вы хотите добавить
     points_id = random.randint(1, 25)
     sensor_characteristic_id = 1
     sensor_type_id = random.randint(1, 3)
-    date = datetime.now() - timedelta(days=random.randint(0, 365))
+    start_date = datetime(2024, 4, 1)
+    end_date = datetime(2024, 4, 5)
+    date = start_date + timedelta(days=random.randint(0, (end_date - start_date).days))
     pm25 = random.uniform(10, 35)
     pm10 = random.uniform(25, 100)
     temperature = random.uniform(-40, 40)
